@@ -48,7 +48,6 @@ def cf_convert_to_grayscale(file_path, change_save_path=(-3, 'save')):
     cf_converter = ConcurrentConverter.cf_file_to_grayscale(*args)
     return cf_converter
 
-
 def cf_convert_by_hough_circle(file_path, draw_circle=False, change_save_path=(-2, 'save')):
     """
     Input file path, there's multiple files under the folder
@@ -91,4 +90,23 @@ def cf_convert_by_max_temperature_difference(file_path, change_save_path=(-3, 's
         args = (frame_paths)
 
     cf_converter = ConcurrentConverter.cf_file_to_rgb_by_temperature_difference(*args)
+    return cf_converter
+
+def cf_convert_to_rgb(file_path, change_save_path=(-2, 'save')):
+    # cf_convert_by_hough_circle(file_path, False, change_save_path)
+    frame_paths = [join(file_path, i) for i in listdir(file_path)]
+    args = None
+
+    # handle saving path
+    if change_save_path is not None and isinstance(change_save_path, tuple):
+        try:
+            assert len(change_save_path) == 2
+        except Exception as e:
+            LOGGER.warning('parameter change_save_path length should be 2')
+        cb = lambda x: construct_png_path(x, change_save_path[0], change_save_path[1])
+        args = (frame_paths, cb)
+    else:
+        args = (frame_paths)
+
+    cf_converter = ConcurrentConverter.cf_file_to_rgb(*args)
     return cf_converter

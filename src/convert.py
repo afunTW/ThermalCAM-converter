@@ -145,6 +145,23 @@ class ConcurrentConverter(Converter):
                 return zip(paths, executor.map(cf_func, paths))
 
     @staticmethod
+    def cf_file_to_rgb(paths, cb_save=None):
+        with ProcessPoolExecutor(max_workers=7) as executor:
+            cf_converter = ConcurrentConverter()
+            cf_func = cf_converter.file_to_rgb
+
+            if cb_save is not None:
+                for path, temp in zip(paths, executor.map(cf_func, paths)):
+                    saved_path = cb_save(path)
+                    if not exists(dirname(saved_path)):
+                        makedirs(dirname(saved_path))
+
+                    LOGGER.info('Saved final result in {}'.format(saved_path))
+                    cv2.imwrite(saved_path, temp)
+            else:
+                return zip(paths, executor.map(cf_func, paths))
+
+    @staticmethod
     def cf_file_to_rgb_by_hough_circle(paths, draw_circle=False, cb_save=None):
         """
         1. set the path
