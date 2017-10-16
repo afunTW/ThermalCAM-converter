@@ -1,12 +1,12 @@
 import logging
 import sys
-from src.app import ThermalFileDialog
+from src.app import ThermalAction
 
 LOGGER = logging.getLogger(__name__)
 
 def main():
-    win = ThermalFileDialog()
-    # win.mainloop()
+    win = ThermalAction()
+    win.mainloop()
 
 if __name__ == '__main__':
     logging.basicConfig(
