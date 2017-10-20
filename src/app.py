@@ -164,16 +164,28 @@ class ThermalAction(ThermalViewer):
     def __init__(self, open_filenames=None, save_directory=None, multiprocess=True):
         """"self.save_directory is useless"""
         super().__init__(open_filenames, save_directory)
+        self.convert_mode = None
         self.flag_multiprocess = multiprocess
         self.btn_load.config(command=self._choose_load_path)
         self.btn_ok.config(command=self.run)
         self._sync_generate_save_path()
 
     def _sync_state(self):
-        if self.save_directory:
+        if self.save_directory and os.path.exists(self.save_directory):
             self.done_count = len(os.listdir(self.save_directory))
-        self.label_state.config(text='Total file: {}/{}'.format(self.done_count, self.total_count))
-        self.label_state.after(10, self._sync_state)
+
+        msg = ''
+        if self.convert_mode is None:
+            msg = u'N/A'
+        elif self.convert_mode == 'convert':
+            msg = u'轉換中'
+        elif self.convert_mode == 'done':
+            msg = u'已轉換完成'
+        self.label_state.config(text=u'共 {} 份文件 - {}'.format(self.total_count, msg))
+
+        if self.root is not None and 'normal' == self.root.state():
+            self.root.update()
+            self.label_state.after(10, self._sync_state)
 
     def _sync_generate_save_path(self):
         if self.open_directory and self.val_colormap.get():
@@ -203,15 +215,22 @@ class ThermalAction(ThermalViewer):
 
     def run(self):
         if self.open_filenames:
-            self._disable_all_checkbtn()
             self._init_frame_footer()
-            self._sync_state()
+            self._disable_all_checkbtn()
 
             if self.val_colormap.get() == 'rgb':
+                self.convert_mode = 'convert'
+                self._sync_state()
+                self.root.update()
                 mod_savedir = '{}_{}'.format(self.open_directory.split(os.sep)[-1], self.val_colormap.get())
                 cf_convert_to_rgb(self.open_directory, (-2, mod_savedir))
+                self.convert_mode = 'done'
                 # self.root.destroy()
             elif self.val_colormap.get() == 'gray':
+                self.convert_mode = 'convert'
+                self._sync_state()
+                self.root.update()
                 mod_savedir = '{}_{}'.format(self.open_directory.split(os.sep)[-1], self.val_colormap.get())
                 cf_convert_to_grayscale(self.open_directory, (-2, mod_savedir))
+                self.convert_mode = 'done'
                 # self.root.destroy()
