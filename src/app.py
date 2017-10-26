@@ -5,9 +5,10 @@ import time
 import tkinter
 from tkinter import filedialog, ttk
 
+from .msg_box import MessageBox
 from .tkcomponent import TkFrame
 from .ttkcomponent import TTKStyle, init_css
-from .wrapper import cf_convert_to_rgb, cf_convert_to_grayscale
+from .wrapper import cf_convert_to_grayscale, cf_convert_to_rgb
 
 LOGGER = logging.getLogger(__name__)
 COLORMAP = [('RGB', 'rgb'), ('Gray', 'gray')]
@@ -233,4 +234,6 @@ class ThermalAction(ThermalViewer):
                 mod_savedir = '{}_{}'.format(self.open_directory.split(os.sep)[-1], self.val_colormap.get())
                 cf_convert_to_grayscale(self.open_directory, (-2, mod_savedir))
                 self.convert_mode = 'done'
+                Mbox = MessageBox()
+                Mbox.info(string=u'已完成, 按確認關閉視窗', parent=self.root)
                 # self.root.destroy()
