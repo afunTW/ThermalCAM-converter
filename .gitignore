@@ -102,4 +102,4 @@ ENV/
 
 # user-defined
 .vscode/
-test_file_img/
+test_file*/
