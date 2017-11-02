@@ -5,10 +5,12 @@ import time
 import tkinter
 from tkinter import filedialog, ttk
 
+import cv2
+
+from .convert import Converter
 from .msg_box import MessageBox
 from .tkcomponent import TkFrame
 from .ttkcomponent import TTKStyle, init_css
-from .wrapper import cf_convert_to_grayscale, cf_convert_to_rgb
 
 LOGGER = logging.getLogger(__name__)
 COLORMAP = [('RGB', 'rgb'), ('Gray', 'gray')]
@@ -19,12 +21,10 @@ class ThermalViewer(object):
         super().__init__()
         self.open_directory = open_filenames
         self.save_directory = save_directory
-        self.total_count = len(open_filenames) if self.open_directory else 0
-        self.done_count = 0
         self.root = None
 
         self._init_windows()
-        # self._open_filedialog()
+        self._init_style()
 
     # set grid all column configure
     def set_all_grid_columnconfigure(self, widget, *cols):
@@ -42,6 +42,11 @@ class ThermalViewer(object):
         self.root.grid_rowconfigure(0, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         self._init_frame()
+        self._init_frame_footer()
+
+    def _init_style(self):
+        init_css()
+        TTKStyle('H5Bold.TLabel', font=('', 13, 'bold'))
 
     def _init_frame(self):
         # root
@@ -95,7 +100,7 @@ class ThermalViewer(object):
         self.label_option = ttk.Label(self.frame_option, text=u'請選擇 colour map: ', style='Title.TLabel')
         self.label_option.grid(row=0, column=0, sticky='w')
         self.val_colormap = tkinter.StringVar()
-        self.val_colormap.set('rgb')
+        self.val_colormap.set('gray')
         self.radiobtn = []
         for i, colourmap in enumerate(COLORMAP):
             text, mode = colourmap
@@ -124,16 +129,10 @@ class ThermalViewer(object):
         # frame_state
         self.label_state = ttk.Label(
             self.frame_state,
-            text='Total file: {}/{}'.format(self.done_count, self.total_count),
-            style='H2.TLabel'
+            text=u'共 N/A 份文件 - 準備中',
+            style='H5Bold.TLabel'
         )
         self.label_state.grid(row=0, column=0, sticky='news')
-        self._sync_state()
-
-    def _sync_state(self):
-        self.label_state.config(text='Total file: {}/{}'.format(self.done_count, self.total_count))
-        if self.root is not None and 'normal' == self.root.state():
-            self.label_state.after(10, self._sync_state)
 
     def _open_filedialog(self):
         self.open_directory = filedialog.askdirectory(
@@ -145,8 +144,8 @@ class ThermalViewer(object):
         if self.open_directory:
             self.label_load_path.config(text=self.open_directory)
             self.open_filenames = glob.glob(os.path.join(self.open_directory, '*.txt'))
-            self.total_count = len(self.open_filenames)
-            LOGGER.info('Load {} file from - {}'.format(self.total_count, self.open_directory))
+            self.label_state.config(text=u'共 {} 份文件 - 準備中'.format(len(self.open_filenames)))
+            LOGGER.info('Load {} file from - {}'.format(len(self.open_filenames), self.open_directory))
 
     def _save_filedialog(self):
         self.save_directory = filedialog.askdirectory(
@@ -165,28 +164,10 @@ class ThermalAction(ThermalViewer):
     def __init__(self, open_filenames=None, save_directory=None, multiprocess=True):
         """"self.save_directory is useless"""
         super().__init__(open_filenames, save_directory)
-        self.convert_mode = None
         self.flag_multiprocess = multiprocess
         self.btn_load.config(command=self._choose_load_path)
         self.btn_ok.config(command=self.run)
         self._sync_generate_save_path()
-
-    def _sync_state(self):
-        if self.save_directory and os.path.exists(self.save_directory):
-            self.done_count = len(os.listdir(self.save_directory))
-
-        msg = ''
-        if self.convert_mode is None:
-            msg = u'N/A'
-        elif self.convert_mode == 'convert':
-            msg = u'轉換中'
-        elif self.convert_mode == 'done':
-            msg = u'已轉換完成'
-        self.label_state.config(text=u'共 {} 份文件 - {}'.format(self.total_count, msg))
-
-        if self.root is not None and 'normal' == self.root.state():
-            self.root.update()
-            self.label_state.after(10, self._sync_state)
 
     def _sync_generate_save_path(self):
         if self.open_directory and self.val_colormap.get():
@@ -211,29 +192,43 @@ class ThermalAction(ThermalViewer):
         for radiobtn in self.radiobtn:
             radiobtn.config(state=tkinter.DISABLED)
 
+    def _gen_save_path(self, x, suffix):
+        x = x.split(os.sep)
+        directory, filename = os.sep.join(x[:-1]), x[-1]
+        directory = '{}_{}'.format(directory, suffix)
+        filename = '{}.jpg'.format(filename.split('.')[0])
+        x = os.path.join(directory, filename)
+        return x
+
+    def _convert_to(self, func, cb_path):
+        for i, txt in enumerate(self.open_filenames):
+            save_path = cb_path(txt)
+            save_dir_path = os.sep.join(save_path.split(os.sep)[:-1])
+            img = func(txt)
+
+            if not os.path.exists(save_dir_path):
+                os.makedirs(save_dir_path)
+
+            cv2.imwrite(save_path, img)
+            LOGGER.info('Save - {}'.format(save_path))
+            self.label_state.config(text=u'共 {}/{} 份文件 - 轉換中'.format(i+1, len(self.open_filenames)))
+            self.root.update()
+
     def mainloop(self):
         self.root.mainloop()
 
     def run(self):
         if self.open_filenames:
-            self._init_frame_footer()
             self._disable_all_checkbtn()
 
             if self.val_colormap.get() == 'rgb':
-                self.convert_mode = 'convert'
-                self._sync_state()
-                self.root.update()
                 mod_savedir = '{}_{}'.format(self.open_directory.split(os.sep)[-1], self.val_colormap.get())
-                cf_convert_to_rgb(self.open_directory, (-2, mod_savedir))
-                self.convert_mode = 'done'
-                # self.root.destroy()
+                cb = lambda x: self._gen_save_path(x, 'rgb')
+                self._convert_to(Converter.file_to_rgb, cb)
             elif self.val_colormap.get() == 'gray':
-                self.convert_mode = 'convert'
-                self._sync_state()
-                self.root.update()
                 mod_savedir = '{}_{}'.format(self.open_directory.split(os.sep)[-1], self.val_colormap.get())
-                cf_convert_to_grayscale(self.open_directory, (-2, mod_savedir))
-                self.convert_mode = 'done'
-                Mbox = MessageBox()
-                Mbox.info(string=u'已完成, 按確認關閉視窗', parent=self.root)
-                # self.root.destroy()
+                cb = lambda x: self._gen_save_path(x, 'gray')
+                self._convert_to(Converter.file_to_grayscale, cb)
+
+            Mbox = MessageBox()
+            Mbox.info(string=u'已完成, 按確認關閉視窗', parent=self.root)
